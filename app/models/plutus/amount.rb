@@ -33,23 +33,3 @@ module Plutus
     alias_method_chain :account=, :name_lookup                                                                    
   end
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  end
-end
