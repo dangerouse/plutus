@@ -28,6 +28,14 @@ module Plutus
     has_many :credit_accounts, :through => :credit_amounts, :source => :account
     has_many :debit_accounts, :through => :debit_amounts, :source => :account
 
+
+    belongs_to :invoice
+
+    attr_accessible :description, :invoice
+    attr_accessible :commercial_document, :created_at, :updated_at
+    attr_accessible :debits, :credits
+
+
     validates_presence_of :description
     validate :has_credit_amounts?
     validate :has_debit_amounts?
@@ -38,6 +46,7 @@ module Plutus
     alias_method :credits=, :credit_amounts_attributes=
     alias_method :debits=, :debit_amounts_attributes=
     attr_accessible :credits, :debits
+
     
     # Support the deprecated .build method
     def self.build(hash)
@@ -45,17 +54,54 @@ module Plutus
       new(hash)
     end
 
+    def total_credits                 
+      self.credit_amounts.sum :amount 
+    end                               
+    
+    def total_debits                  
+      self.debit_amounts.sum :amount  
+    end                               
+    
+    def inverted?                     
+      total_debits < 0                
+    end
+    
+    def reverse(_opts = {})
+      # collect all the amounts and clone them for this transaction, with reversed
+      _debits = debit_amounts.map(&:clone)
+      _credits = credit_amounts.map(&:clone)
+      (_debits + _credits).each { |amount| amount.update_attribute(:amount, -(amount.amount)) }
+      _transaction                = self.clone
+      _transaction.created_at     = _transaction.updated_at = Time.now
+      _transaction.debit_amounts  = _debits
+      _transaction.credit_amounts = _credits
+      _transaction.update_attributes(_opts)
+      _transaction
+    end
+    
+    def adjust_charge(_opts = {})
+      if _opts[:amount]
+        self.debit_amounts.last.update_attribute :amount, _opts[:amount]
+        self.credit_amounts.last.update_attribute :amount, _opts[:amount]
+      else
+        self.update_attributes :description => _opts[:description] || "Free development-only domain"
+        self.debit_amounts.last.update_attribute :amount, 0.0
+        self.credit_amounts.last.update_attribute :amount, 0.0
+      end
+    end
+
     private
-      def has_credit_amounts?
-        errors[:base] << "Transaction must have at least one credit amount" if self.credit_amounts.blank?
-      end
+    
+    def has_credit_amounts?
+      errors[:base] << "Transaction must have at least one credit amount" if self.credit_amounts.blank?
+    end
 
-      def has_debit_amounts?
-        errors[:base] << "Transaction must have at least one debit amount" if self.debit_amounts.blank?
-      end
+    def has_debit_amounts?
+      errors[:base] << "Transaction must have at least one debit amount" if self.debit_amounts.blank?
+    end
 
-      def amounts_cancel?
-        errors[:base] << "The credit and debit amounts are not equal" if credit_amounts.balance != debit_amounts.balance
-      end
+    def amounts_cancel?
+      errors[:base] << "The credit and debit amounts are not equal" if credit_amounts.balance != debit_amounts.balance
+    end
   end
 end

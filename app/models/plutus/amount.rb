@@ -11,6 +11,10 @@ module Plutus
     belongs_to :transaction
     belongs_to :account
 
+
+    belongs_to :account
+    attr_accessible :account, :amount
+
     validates_presence_of :type, :amount, :transaction, :account
 
 
